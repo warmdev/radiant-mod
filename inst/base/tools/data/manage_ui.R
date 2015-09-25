@@ -418,7 +418,7 @@ output$ui_datasets <- renderUI({
   tagList(
     selectInput(inputId = "folder", label = "Select folder:", choices = r_data$folderlist,
                 selected = r_data$folderlist[1], multiple = FALSE),
-    selectInput(inputId = "dataset", label = "Datasets:", choices = r_data$datasetlist, selected = state_init("dataset"),
+    selectInput(inputId = "dataset", label = "Data tables:", choices = r_data$datasetlist, selected = state_init("dataset"),
                 multiple = FALSE),
     conditionalPanel(condition = "input.tabs_data == 'Manage'",
       checkboxInput("man_add_descr","Add/edit data description", FALSE),
