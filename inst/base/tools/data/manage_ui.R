@@ -240,6 +240,7 @@ observeEvent(input$folder, {
       loadUserData(ex, file.path(data_path, ex), 'csv', r_data)
     }
   }
+  r_data[['datasetlist']] <- sort(r_data[['datasetlist']])
   updateSelectInput(session, "folder", selected = input$folder)
 })
 
