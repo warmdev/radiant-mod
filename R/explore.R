@@ -32,13 +32,6 @@ explore <- function(dataset,
                     data_filter = "",
                     shiny = FALSE) {
 
-  # dataset <- "diamonds"
-  # # vars <- c("price","carat")
-  # vars <- "price"
-  # byvar <- "cut"
-  # fun <- c("mean_rm","n_missing")
-  # data_filter <- ""
-
   tvars <- vars
   if (!is_empty(byvar)) tvars %<>% c(byvar)
 
@@ -73,25 +66,38 @@ explore <- function(dataset,
       }
     }
 
-    ## avoiding issues with n_missing and n_distinct
-    names(pfun) %<>% sub("n_","n.",.)
+    ## avoiding issues with n_missing and n_distinct in dplyr
+    ## have to reverse this later
+    # names(pfun) %<>% sub("n_","n.",.)
+    # names(pfun) %<>% sub("n_missing","n.missing",.) %>% sub("n_distinct","n.distinct",.)
+    # mutate(fun = sub("n.","n_",fun)) %>%
+    # set_colnames(., sub("^n\\.","n_",colnames(.))) %>%
+    fix_uscore <- function(x, org = "_", repl = ".") {
+      stats <-  c("missing","distinct")
+      org <- paste0("n",org,stats)
+      repl <- paste0("n",repl,stats)
+      for (i in seq_along(org)) {
+        x %<>% sub(org[i],repl[i],.)
+      }
+      x
+    }
+
+    names(pfun) %<>% fix_uscore
 
     ## for median issue in dplyr < .5
     ## https://github.com/hadley/dplyr/issues/893
     tab <-
       dat %>% group_by_(.dots = byvar) %>%
-      # select(isNum) %>% mutate_each("as.numeric") %>%
       summarise_each(pfun)
 
     ## avoiding issues with n_missing and n_distinct
     names(pfun) %<>% sub("n.","n_",.)
-    tab
 
     if (length(vars) > 1 && length(fun) > 1) {
       ## useful answer and comments: http://stackoverflow.com/a/27880388/1974918
       tab %<>% gather("variable", "value", -(1:length(byvar))) %>%
         separate(variable, into = c("variable", "fun"), sep = "_(?=[^_]*$)") %>%
-        mutate(fun = sub("n.","n_",fun)) %>%
+        mutate(fun = fix_uscore(fun, ".","_")) %>%
         mutate(fun = factor(fun, levels = names(pfun)), variable = factor(variable, levels = vars)) %>%
         spread_("fun","value")
     } else if (length(fun) == 1) {
@@ -100,13 +106,10 @@ explore <- function(dataset,
         rename_(.dots = setNames("value", names(pfun)))
     } else if (length(vars) == 1){
       tab %<>% mutate(variable = factor(vars, levels = vars)) %>%
-        set_colnames(., sub("^n.","n_",colnames(.))) %>%
+        set_colnames(., fix_uscore(colnames(.), ".","_")) %>%
         select_(.dots = c(byvar, "variable", names(pfun)))
     }
   }
-
-
-
 
   ## filtering the table if desired
   if (tabfilt != "") {
@@ -183,6 +186,7 @@ summary.explore <- function(object, top = "fun", ...) {
 #'
 #' @examples
 #' result <- explore("diamonds", "price:x") %>% flip("var")
+#'
 #' result <- explore("diamonds", "price", byvar = "cut", fun = c("length", "skew")) %>%
 #'   flip("byvar")
 #'
@@ -245,7 +249,7 @@ make_expl <- function(expl,
   ))
 
   dt_tab <- tab %>% {.[,cn_num] <- round(.[,cn_num], dec); .} %>%
-    DT::datatable(container = sketch,
+    DT::datatable(container = sketch, selection = "none",
       rownames = FALSE,
       filter = list(position = "top"),
       style = ifelse (expl$shiny, "bootstrap", "default"),
@@ -266,72 +270,6 @@ make_expl <- function(expl,
 
   ## can use this in R > Report inside Radiant but doesn't export
   # renderDataTable({make_dt(result)})
-}
-
-#' Create data.frame summary
-#'
-#' @details Used by Transform
-#'
-#' @param dat Data.frame
-#' @param dc Class for each variable
-#'
-#' @export
-getsummary <- function(dat, dc = getclass(dat)) {
-
-  isFct <- "factor" == dc
-  isNum <- "numeric" == dc | "integer" == dc
-  isDate <- "date" == dc
-  isChar <- "character" == dc
-  isLogic <- "logical" == dc
-  isPeriod <- "period" == dc
-
-  if (sum(isNum) > 0) {
-
-    cn <- names(dc)[isNum]
-
-    cat("Summarize numeric variables:\n")
-    select(dat, which(isNum)) %>%
-      tidyr::gather_("variable", "values", cn) %>%
-      group_by_("variable") %>%
-      summarise_each(funs(n = length, n_missing = n_missing, n_distinct = n_distinct,
-                     mean = mean_rm, median = median_rm, min = min_rm, max = max_rm,
-                     `25%` = p25, `75%` = p75, sd = sd_rm, se = serr, cv = sd/mean)) %>%
-      data.frame(check.names = FALSE) %>%
-      { .[,-1] %<>% round(.,3); colnames(.)[1] <- ""; . } %>%
-      print(row.names = FALSE)
-    cat("\n")
-  }
-  if (sum(isFct) > 0) {
-    cat("Summarize factors:\n")
-    select(dat, which(isFct)) %>% summary %>% print
-    cat("\n")
-  }
-  if (sum(isDate) > 0) {
-    cat("Earliest dates:\n")
-    select(dat, which(isDate)) %>% summarise_each(funs(min)) %>% print
-    cat("\nFinal dates:\n")
-    select(dat, which(isDate)) %>% summarise_each(funs(max)) %>% print
-    cat("\n")
-  }
-  if (sum(isPeriod) > 0) {
-    cat("Earliest time:\n")
-    select(dat, which(isPeriod)) %>% summarise_each(funs(min)) %>% print
-    cat("\nFinal time:\n")
-    select(dat, which(isPeriod)) %>% summarise_each(funs(max)) %>% print
-    cat("\n")
-  }
-  if (sum(isChar) > 0) {
-    cat("Summarize character variables (< 20 unique values shown):\n")
-    select(dat, which(isChar)) %>% distinct %>% lapply(unique) %>%
-      {for(i in names(.)) cat(i, ":", .[[i]][1:min(20,length(.[[i]]))], "\n")}
-    cat("\n")
-  }
-  if (sum(isLogic) > 0) {
-    cat("Summarize logical variables:\n")
-    select(dat, which(isLogic)) %>% summarise_each(funs(sum)) %>%
-      as.data.frame %>% set_rownames("# True") %>% print
-    cat("\n")
-  }
 }
 
 ###########################################
@@ -395,7 +333,7 @@ p95 <- function(x, na.rm = TRUE) quantile(x,.95, na.rm = na.rm)
 #' serr(rnorm(100))
 #'
 #' @export
-serr <- function(x, na.rm = TRUE) sd(x, na.rm = na.rm) / length(na.omit(x))
+serr <- function(x, na.rm = TRUE) sd(x, na.rm = na.rm) / sqrt(length(na.omit(x)))
 
 #' Coefficient of variation
 #' @param x Input variable
@@ -475,6 +413,37 @@ max_rm <- function(x) max(x, na.rm = TRUE)
 #' @export
 sd_rm <- function(x) sd(x, na.rm = TRUE)
 
+#' Variance with na.rm = TRUE
+#' @param x Input variable
+#' @return Variance
+#' @examples
+#' var_rm(rnorm(100))
+#'
+#' @export
+var_rm <- function(x) var(x, na.rm = TRUE)
+
+#' Variance for the population na.rm = TRUE
+#' @param x Input variable
+#' @return Variance for the population
+#' @examples
+#' varp_rm(rnorm(100))
+#'
+#' @export
+varp_rm <- function(x) {
+  x <- na.omit(x)
+  n <- length(x)
+  var(x) * ((n-1)/n)
+}
+
+#' Standard deviation for the population na.rm = TRUE
+#' @param x Input variable
+#' @return Standard deviation for the population
+#' @examples
+#' sdp_rm(rnorm(100))
+#'
+#' @export
+sdp_rm <- function(x) sqrt(varp_rm(x))
+
 #' Sum with na.rm = TRUE
 #' @param x Input variable
 #' @return Sum of input values
@@ -483,6 +452,17 @@ sd_rm <- function(x) sd(x, na.rm = TRUE)
 #'
 #' @export
 sum_rm <- function(x) sum(x, na.rm = TRUE)
+
+#' Natural log
+#' @param x Input variable
+#' @param na.rm Remove missing values (default is TRUE)
+#' @return Natural log of vector
+#' @examples
+#' ln(runif(10,1,2))
+#'
+#' @export
+ln <- function(x, na.rm = TRUE)
+  if (na.rm) log(na.omit(x)) else log(x)
 
 #' Does a vector have non-zero variability?
 #' @param x Input variable
@@ -497,7 +477,7 @@ does_vary <- function(x) {
     FALSE
   } else {
     if (is.factor(x) || is.character(x)) {
-      n_distinct(na.omit(x)) > 1
+      n_distinct(x, na_rm = TRUE) > 1
     } else {
       abs(max_rm(x) - min_rm(x)) > .Machine$double.eps^0.5
     }

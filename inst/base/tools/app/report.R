@@ -15,13 +15,14 @@ This is an example of the type of report you can write in Radiant.
 
 You can even include math if you want:
 
-$$y_t = \\alpha + \\beta x_t + \\epsilon_t.$$
+$$y_t = \\\\alpha + \\\\beta x_t + \\\\epsilon_t.$$
 
 To show the output press the `Update` button.
 
 ### Documenting analysis results in Radiant
 
-The report feature in Radiant should be used in conjunction with the <i title='Report results' class='glyphicon glyphicon-book'></i> icons shown on the bottom of the (left) side bar on all analytisis pages. When that icon is clicked the command used to create the ouput is copied into the editor in the R > Report. By default Radiant will paste the code generated for the analysis you just completed at the bottom of the report. However, you can turn off that feature by clicking the `Manual paste (off)` button. The text in the button should now read `Manual paste (on)`. Click the button again to turn manual paste off again. With manual paste on the code is put in the clipboard when you click a book icon and you can paste it where you want in the R > Report editor window.
+The report feature in Radiant should be used in conjunction with the <i title='Report results' class='fa fa-edit'></i> icons shown at the bottom of the side bar on (almost) all pages. When that icon is clicked the command used to create the ouput is copied into the editor in the R > Report. By default Radiant will paste the code generated for the analysis you just completed at the bottom of the report. However, you can turn off that feature by clicking the `Manual paste (off)` button. The text in the button should now read `Manual paste (on)`. Click the button again to turn manual paste off again. With manual paste on the code is put in the clipboard when you click a book icon and you can paste it where you want in the R > Report editor window.
+
 
 By clicking the update button, the output from the analysis will be recreated. You can add text, bullets, headers, etc. around the code blocks to describe and explain the results using <a href='http://rmarkdown.rstudio.com/authoring_pandoc_markdown.html' target='_blank'>markdown</a>.
 
@@ -38,6 +39,7 @@ plot(result, plots = 'hist')
 visualize(dataset = 'diamonds', xvar = 'carat', yvar = 'price',
           type = 'scatter', color = 'clarity')
 ```
+> **Put your own code here or delete this sample report and create your own**
 "
 
 observeEvent(input$manual_paste, {
@@ -52,7 +54,13 @@ output$ui_manual <- renderUI({
 })
 
 observeEvent(input$vim_keys, {
-  isolate(r_data$vim_keys %<>% {. == FALSE})
+  isolate({
+
+    # if (!is_empty(input$rmd_report))
+    # r_state$rmd_report <<- input$rmd_report
+
+    r_data$vim_keys %<>% {. == FALSE}
+  })
 })
 
 output$ui_vim <- renderUI({
@@ -63,13 +71,14 @@ output$ui_vim <- renderUI({
 })
 
 output$report <- renderUI({
+  init <- isolate(if (is_empty(input$rmd_report)) rmd_example else input$rmd_report)
   tagList(
     with(tags,
       table(
             td(help_modal('Report','report_help',
                        inclMD(file.path(r_path,"base/tools/help/report.md")))),
             td(HTML("&nbsp;&nbsp;")),
-            td(actionButton("evalRmd", "Update")),
+            td(actionButton("evalRmd", "Knit report")),
             td(uiOutput("ui_manual")),
             td(uiOutput("ui_vim")),
             td(downloadButton("saveHTML", "Save HTML")),
@@ -85,7 +94,8 @@ output$report <- renderUI({
               wordWrap = TRUE,
               height = "auto",
               selectionId = "rmd_selection",
-              value = state_init("rmd_report",rmd_example),
+              # value = state_init("rmd_report",rmd_example),
+              value = state_init("rmd_report", init),
               hotkeys = list(runKeyRmd = list(win = "CTRL-ENTER", mac = "CMD-ENTER"))),
     htmlOutput("rmd_knitted")
   )
@@ -107,10 +117,9 @@ scrub <-
 
 ## Knit to save html
 knitIt <- function(text) {
-  # knitr::knit2html(text = text, quiet = TRUE, envir = r_data$r_knitr,
   knitr::knit2html(text = text, quiet = TRUE, envir = r_knitr,
                    options=c("mathjax", "base64_images"),
-                   stylesheet = file.path(r_path,"base/www/rmarkdown.css")) %>%
+                   stylesheet = file.path(r_path,"base/www/bootstrap.min.css")) %>%
   scrub %>% HTML
 }
 
@@ -118,7 +127,6 @@ knitIt <- function(text) {
 knitIt2 <- function(text) {
   # paste(knitr::knit2html(text = text, fragment.only = TRUE, quiet = TRUE, envir = r_env),
   paste(knitr::knit2html(text = text, fragment.only = TRUE, quiet = TRUE,
-        # envir = r_data$r_knitr), stylesheet = "",
         envir = r_knitr), stylesheet = "",
         "<script type='text/javascript' src='https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>",
         "<script>MathJax.Hub.Typeset();</script>", sep = '\n') %>% scrub %>% HTML
@@ -189,6 +197,7 @@ observe({
     isolate({
       rmdfile <- paste0(readLines(inFile$datapath), collapse = "\n")
       shinyAce::updateAceEditor(session, "rmd_report", value = rmdfile)
+      # r_state$rmd_report <<- rmdfile
     })
   }
 })
@@ -231,6 +240,15 @@ update_report <- function(inp_main = "", fun_name = "", inp_out = list("",""),
   update_report_fun(cmd)
 }
 
+observeEvent(input$rmd_report, {
+  if (input$rmd_report != rmd_example) {
+    # path <- file.path(normalizePath("~"),"r_sessions")
+    # if (file.exists(path))
+    #   cat(r_state$rmd_report, file = file.path(path,"rmd_report.Rmd"), append = TRUE)
+    r_state$rmd_report <<- input$rmd_report
+  }
+})
+
 update_report_fun <- function(cmd) {
 
   if (isolate(r_data$manual)) {
@@ -238,7 +256,9 @@ update_report_fun <- function(cmd) {
     if (os_type == 'Windows') {
       cat(cmd, file = "clipboard")
     } else if (os_type == "Darwin") {
-      cat(cmd, file = pipe("pbcopy"))
+      out <- pipe("pbcopy")
+      cat(cmd, file = out)
+      close(out)
     } else if (os_type == "Linux") {
       cat("Clipboard not supported on linux")
     }
@@ -246,17 +266,26 @@ update_report_fun <- function(cmd) {
     cmd <- ""
   }
 
+
+
   if (cmd != "") {
-    if (is.null(input$rmd_report)) {
-      if (is.null(r_state$rmd_report)) {
-        r_state$rmd_report <<- cmd
+
+    # if (is_empty(input$rmd_report)) {
+      if (is_empty(r_state$rmd_report)) {
+        r_state$rmd_report <<- paste0("## Your report title\n", cmd)
+        # cmd <- paste0("## Your report title\n", cmd)
       } else {
         r_state$rmd_report <<- paste0(r_state$rmd_report,"\n",cmd)
+        # cmd <- paste0(r_state$rmd_report,"\n",cmd)
       }
-    } else {
       shinyAce::updateAceEditor(session, "rmd_report",
-                      value = paste0(input$rmd_report,"\n",cmd))
-    }
+                                value = r_state$rmd_report)
+      #                           value = cmd)
+    # } else {
+      # shinyAce::updateAceEditor(session, "rmd_report",
+                                # value = paste0(input$rmd_report,"\n",cmd))
+      # r_state$rmd_report <<- paste0(input$rmd_report,"\n",cmd)
+    # }
   }
 
   ## move to the report panel so see the commands created

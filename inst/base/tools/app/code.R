@@ -29,8 +29,17 @@ help(package = 'radiant')
 ## this can very useful for debugging
 transform_main() %>% head"
 
+# observeEvent(input$vim_keys_code, {
+#   isolate(r_data$vim_keys %<>% {. == FALSE})
+# })
+
 observeEvent(input$vim_keys_code, {
-  isolate(r_data$vim_keys %<>% {. == FALSE})
+  isolate({
+    if (!is_empty(input$rmd_code))
+      r_state$rmd_code <<- input$rmd_code
+
+    r_data$vim_keys %<>% {. == FALSE}
+  })
 })
 
 output$ui_vim_code <- renderUI({
@@ -48,7 +57,7 @@ output$rcode <- renderUI({
             td(help_modal('Code','code_help',
                        inclMD(file.path(r_path,"base/tools/help/code.md")))),
             td(HTML("&nbsp;&nbsp;")),
-            td(actionButton("rEval", "Run")),
+            td(actionButton("rEval", "Run code")),
             td(uiOutput("ui_vim_code")),
             td(downloadButton('saveCode', 'Save')),
             td(HTML("<div class='form-group shiny-input-container'>

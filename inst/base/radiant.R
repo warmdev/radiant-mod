@@ -17,21 +17,39 @@
 
 saveSession <- function(session = session) {
   if (!exists("r_sessions")) return()
+  if (exists("r_state") && !is_empty(r_state)) {
+    rs <- r_state
+    rs_input <- reactiveValuesToList(input)
+    rs[names(rs_input)] <- rs_input
+  } else {
+    rs <- reactiveValuesToList(input)
+  }
+
   r_sessions[[r_ssuid]] <- list(
     r_data    = reactiveValuesToList(r_data),
-    r_state   = reactiveValuesToList(input),
+    # r_state = reactiveValuesToList(input),
+    r_state = rs,
     timestamp = Sys.time()
   )
-  ## saving session information to file on server
-  if (!r_local)
-    saveRDS(r_sessions[[r_ssuid]], file = paste0("~/r_sessions/r_", r_ssuid, ".rds"))
+
+  ## saving session information to file
+  fn <- paste0(normalizePath("~/r_sessions"),"/r_", r_ssuid, ".rds")
+  saveRDS(r_sessions[[r_ssuid]], file = fn)
+
+  # if (!r_local)
+  # saveRDS(r_sessions[[r_ssuid]], file = paste0("~/r_sessions/r_", r_ssuid, ".rds"))
 }
 
 observeEvent(input$refresh_radiant, {
-  if (r_local) return()
-  ## use sshhr to avoid warnings if needed
-  fn <- paste0(normalizePath("~/r_sessions"),"/r_", r_ssuid, ".rds")
-  if (file.exists(fn)) unlink(fn, force = TRUE)
+  if (r_local) {
+    fn <- normalizePath("~/r_sessions")
+    file.remove(list.files(fn, full.names = TRUE))
+  } else {
+    fn <- paste0(normalizePath("~/r_sessions"),"/r_", r_ssuid, ".rds")
+    if (file.exists(fn)) unlink(fn, force = TRUE)
+  }
+
+  try(r_ssuid <- NULL, silent = TRUE)
 })
 
 saveStateOnRefresh <- function(session = session) {
@@ -40,12 +58,13 @@ saveStateOnRefresh <- function(session = session) {
       if (not_pressed(input$refresh_radiant) && not_pressed(input$stop_radiant) &&
           is.null(input$uploadState)) {
         saveSession(session)
-        # if (r_local) try(rm(r_env, envir = .GlobalEnv), silent = TRUE)
-        if (r_local) sshh( rm(r_env, envir = .GlobalEnv) )
+        # if (r_local) sshh( rm(r_env, envir = .GlobalEnv) )
       } else {
         if (is.null(input$uploadState)) {
-          if (exists("r_sessions"))
-            try(r_sessions[[r_ssuid]] <- NULL, silent = TRUE)
+          if (exists("r_sessions")) {
+            sshhr(try(r_sessions[[r_ssuid]] <- NULL, silent = TRUE))
+            sshhr(try(rm(r_ssuid), silent = TRUE))
+          }
         }
       }
     })
@@ -56,19 +75,13 @@ saveStateOnRefresh <- function(session = session) {
 ## functions used across tools in radiant
 ################################################################
 
-## add variables to the data
-.changedata <- function(new_col, new_col_name = "", dataset = input$dataset) {
-	if (nrow(r_data[[dataset]]) == new_col %>% nrow &&
-    new_col_name[1] != "")
-    r_data[[dataset]][,new_col_name] <- new_col
-}
-
 ## get active dataset and apply data-filter if available
 .getdata <- reactive({
 
   if (is.null(input$dataset)) return()
 
-  selcom <- input$data_filter %>% gsub("\\s","", .) %>% gsub("\"","\'",.)
+  # selcom <- input$data_filter %>% gsub("\\s","", .) %>% gsub("\"","\'",.)
+  selcom <- input$data_filter %>% gsub("\\n","", .) %>% gsub("\"","\'",.)
   if (is_empty(selcom) || input$show_filter == FALSE) {
     isolate(r_data$filter_error <- "")
   } else if (grepl("([^=!<>])=([^=])",selcom)) {
@@ -90,29 +103,33 @@ saveStateOnRefresh <- function(session = session) {
   head(r_data[[input$dataset]]) %>% getclass
 })
 
-# n_distinct_no_miss <- function(x) n_distinct( x[!is.na(x) & x != "" & x != "[EMPTY]"])
-
 ## used for group_by and facet row/column
+# groupable_vars <- reactive({
+#   .getdata() %>%
+#     summarise_each(funs(is.factor(.) || lubridate::is.Date(.) || (n_distinct(., na_rm = TRUE)/n()) < .25)) %>%
+#     {which(. == TRUE)} %>%
+#     varnames()[.]
+# })
+
 groupable_vars <- reactive({
   .getdata() %>%
-    # summarise_each(funs(is.factor(.) || is.Date(.) || (n_distinct_no_miss(.)/n()) < .05)) %>%
-    summarise_each(funs(is.factor(.) || lubridate::is.Date(.) || (n_distinct(., na_rm = TRUE)/n()) < .05)) %>%
+    summarise_each(funs(is.factor(.) || lubridate::is.Date(.) || is.integer(.) ||
+                        ((n_distinct(., na_rm = TRUE)/n()) < .30))) %>%
+                        # ((n_distinct(., na_rm = TRUE)/n()) < .30 && !is.numeric(.)))) %>%
     {which(. == TRUE)} %>%
     varnames()[.]
 })
 
-
 ## used in compare proportions
 two_level_vars <- reactive({
   .getdata() %>%
-    # summarise_each(funs(n_distinct_no_miss(.))) %>%
     summarise_each(funs(n_distinct(., na_rm = TRUE))) %>%
     { . == 2 } %>%
     which(.) %>%
     varnames()[.]
 })
 
-## used in visualize - don't plot variables that have zero sd
+## used in visualize - don't plot Y-variables that don't vary
 varying_vars <- reactive({
   .getdata() %>%
     summarise_each(funs(does_vary(.))) %>%
@@ -139,10 +156,21 @@ clean_args <- function(rep_args, rep_default = list()) {
   if (length(rep_default) == 0) rep_default[names(rep_args)] <- ""
 
   ## removing default arguments before sending to report feature
-  for (i in names(rep_args))
+  for (i in names(rep_args)) {
+    # if (is.na(rep_args[[i]])) || all(rep_args[[i]] == rep_default[[i]])) rep_args[[i]] <- NULL
+    if (all(is.na(rep_args[[i]]))) {rep_args[[i]] <- NULL; next}
+    # if (rep_default[[i]] == Inf || rep_default[[i]] == -Inf) next
+    # if (is.symbol(rep_default[[i]])) next
+    if (!all(is.symbol(rep_default[[i]])) && all(is_not(rep_default[[i]]))) next
+    # print(rep_default[[i]])
+    # if (rep_default[[i]] == NA) next
     if (all(rep_args[[i]] == rep_default[[i]])) rep_args[[i]] <- NULL
+  }
+
   rep_args
 }
+
+is.symbol
 
 ## check if a variable is null or not in the selected data.frame
 not_available <- function(x)
@@ -150,6 +178,8 @@ not_available <- function(x)
 
 ## check if a variable is null or not in the selected data.frame
 available <- function(x) not_available(x) == FALSE
+
+is_not <- function(x) is.null(x) || is.na(x)
 
 ## check if a button was NOT pressed
 not_pressed <- function(x) if (is.null(x) || x == 0) TRUE else FALSE
@@ -172,7 +202,7 @@ r_drop <- function(x, drop = c("dataset","data_filter")) x[-which(x %in% drop)]
 d2c <- function(x) if (is_date(x)) as.character(x) else x
 
 ## truncate character fields for show_data_snippet
-trunc_char <- function(x) if (is.character(x)) strtrim(x,17) else x
+trunc_char <- function(x) if (is.character(x)) strtrim(x,40) else x
 
 ## show a few rows of a dataframe
 show_data_snippet <- function(dat = input$dataset, nshow = 7, title = "") {
@@ -193,7 +223,7 @@ show_data_snippet <- function(dat = input$dataset, nshow = 7, title = "") {
 }
 
 suggest_data <- function(text = "", dat = "diamonds")
-  paste0(text, "For an example dataset go to Data > Manage, select the 'examples' radio button,\nand press the 'Load examples' button. Then select the \'", dat, "\' dataset")
+  paste0(text, "For an example dataset go to Data > Manage, select 'examples' from the\n'Load data of type' dropdown, and press the 'Load examples' button. Then\nselect the \'", dat, "\' dataset.")
 
 ## function written by @wch https://github.com/rstudio/shiny/issues/781#issuecomment-87135411
 capture_plot <- function(expr, env = parent.frame()) {
@@ -218,8 +248,14 @@ returnTextAreaInput <- function(inputId, label = NULL, value = "") {
     tags$label(label, `for` = inputId),br(),
     tags$textarea(value, id=inputId, type = "text", rows="2",
                   class="returnTextArea form-control")
-    # tags$textarea(id=inputId, type = "text", rows="2",
-                  # class="returnTextArea form-control", value)
+  )
+}
+
+returnTextInput <- function(inputId, label = NULL, value = "") {
+  tagList(
+    tags$label(label, `for` = inputId),
+    tags$input(id = inputId, type = "text", value = value,
+               class = "returnTextInput form-control")
   )
 }
 
@@ -240,7 +276,6 @@ register_print_output <- function(fun_name, rfun_name,
     ## when no analysis was conducted (e.g., no variables selected)
     get(rfun_name)() %>%
     { if (is.character(.)) cat(.,"\n") else . } %>% rm
-
   })
 }
 
@@ -258,14 +293,12 @@ register_plot_output <- function(fun_name, rfun_name,
     ## when no analysis was conducted (e.g., no variables selected)
     get(rfun_name)() %>% { if (is.null(.)) " " else . } %>%
     { if (is.character(.)) {
-        plot(x = 1, type = 'n', main= . , axes = FALSE, xlab = "", ylab = "")
+        plot(x = 1, type = 'n', main = paste0("\n\n\n\n\n\n\n\n",.) ,
+             axes = FALSE, xlab = "", ylab = "")
       } else {
         withProgress(message = 'Making plot', value = 0, print(.))
       }
     }
-
-    # return(invisible())
-
   }, width=get(width_fun), height=get(height_fun))
 
   return(invisible())
@@ -289,6 +322,7 @@ plot_downloader <- function(plot_name, width = plot_width(),
 
         ## needed to get the image quality at the same level as shiny
         pr <- session$clientData$pixelratio
+        if (is.null(pr) || pr < 1) pr <- 1
         png(file=file, width = width*pr, height = height*pr, res=72*pr)
           print(get(paste0(pre, plot_name))())
         dev.off()
@@ -332,7 +366,7 @@ help_modal <- function(modal_title, link, help_file) {
               </div>
             </div>
            </div>
-           <i title='Help' class='glyphicon glyphicon-question-sign' data-toggle='modal' data-target='#%s'></i>",
+           <i title='Help' class='fa fa-question' data-toggle='modal' data-target='#%s'></i>",
            link, link, link, modal_title, help_file, link) %>%
   enc2utf8 %>% HTML
 }
@@ -351,8 +385,8 @@ help_and_report <- function(modal_title, fun_name, help_file) {
               </div>
             </div>
            </div>
-           <i title='Help' class='glyphicon glyphicon-question-sign alignleft' data-toggle='modal' data-target='#%s_help'></i>
-           <i title='Report results' class='glyphicon glyphicon-book action-button shiny-bound-input alignright' href='#%s_report' id='%s_report'></i>
+           <i title='Help' class='fa fa-question alignleft' data-toggle='modal' data-target='#%s_help'></i>
+           <i title='Report results' class='fa fa-edit action-button shiny-bound-input alignright' href='#%s_report' id='%s_report'></i>
            <div style='clear: both;'></div>",
           fun_name, fun_name, fun_name, modal_title, help_file, fun_name, fun_name, fun_name) %>%
   enc2utf8 %>% HTML %>% withMathJax
@@ -370,6 +404,45 @@ inclRmd <- function(path, r_env = parent.frame()) {
     envir = r_env, options = "", stylesheet = "") %>%
     # gsub("&lt;!--/html_preserve--&gt;","",.) %>%  ## knitr adds this
     # gsub("&lt;!--html_preserve--&gt;","",.) %>%   ## knitr adds this
-    HTML %>%
-    withMathJax
+    HTML %>% withMathJax
+}
+
+## used by View - remove or use more broadly
+find_env <- function(dataset) {
+  if (exists("r_env")) {
+    r_env
+  } else if (exists("r_data") && !is.null(r_data[[dataset]])) {
+    pryr::where("r_data")
+  } else if (exists(dataset)) {
+    pryr::where(dataset)
+  }
+}
+
+## used by View - remove or use more broadly
+save2env <- function(dat, dataset,
+                     dat_name = dataset,
+                     mess = "") {
+
+  env <- find_env(dataset)
+  env$r_data[[dat_name]] <- dat
+  if (dataset != dat_name) {
+    cat(paste0("Dataset r_data$", dat_name, " created in ", environmentName(env), " environment\n"))
+    env$r_data[['datasetlist']] <- c(dat_name, env$r_data[['datasetlist']]) %>% unique
+  } else {
+    cat(paste0("Dataset r_data$", dataset, " changed in ", environmentName(env), " environment\n"))
+  }
+
+  ## set to previous description
+  env$r_data[[paste0(dat_name,"_descr")]] <- env$r_data[[paste0(dataset,"_descr")]]
+
+  if (mess != "")
+    env$r_data[[paste0(dat_name,"_descr")]] %<>% paste0("\n\n",mess)
+}
+
+## cat to file
+## use with tail -f ~/r_cat.txt in a terminal
+cf <- function(...) {
+  cat(paste0("\n--- called from: ", environmentName(parent.frame()), " (", lubridate::now(), ")\n"), file = "~/r_cat.txt", append = TRUE)
+  out <- paste0(capture.output(...), collapse = "\n")
+  cat("--\n", out, "\n--", sep = "\n", file = "~/r_cat.txt", append = TRUE)
 }

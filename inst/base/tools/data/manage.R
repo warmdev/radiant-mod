@@ -40,8 +40,8 @@ loadClipboardData <- function(objname = "copy_and_paste", ret = "", header = TRU
     if (ret == "") ret <- c("### Data in clipboard was not well formatted. Try exporting the data to csv format.")
     upload_error_handler(objname,ret)
   } else {
-    ret <- paste0("### Clipboard data\nData copied from clipboard on", lubridate::now())
-    r_data[[objname]] <- dat
+    ret <- paste0("### Clipboard data\nData copied from clipboard on ", lubridate::now())
+    r_data[[objname]] <- dat %>% as.data.frame(check.names = FALSE)
     r_data[[paste0(objname,"_descr")]] <- ret
   }
   r_data[['datasetlist']] <- c(objname,r_data[['datasetlist']]) %>% unique
@@ -50,7 +50,7 @@ loadClipboardData <- function(objname = "copy_and_paste", ret = "", header = TRU
 saveClipboardData <- function() {
   os_type <- Sys.info()["sysname"]
   if (os_type == 'Windows') {
-    write.table(.getdata(), "clipboard", sep="\t", row.names=FALSE)
+    write.table(.getdata(), "clipboard-10000", sep="\t", row.names=FALSE)
   } else if (os_type == "Darwin") {
     write.table(.getdata(), file = pipe("pbcopy"), row.names = FALSE, sep = '\t')
   } else if (os_type == "Linux") {

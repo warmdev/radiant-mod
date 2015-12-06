@@ -18,7 +18,7 @@ Click on a column header in the table to sort the data by the values of that var
 
 ### Filter
 
-There are several ways to select a subset of the data to view. The `Filter` box on the left (click the check-box first) can be used with `>` and `<` signs and you can also combine subset commands. For example, `x > 3 & y == 2` would show only those rows for which the variable `x` has values larger than 3 **and** for which `y` has values equal to 2. Note that in R, and most other programming languages, `=` is used to _assign_ a value and `==` to evaluate if the value of a variable is equal to some other value. In contrast `!=` is used to determine if a variable is _unequal_ to some value. You can also use expressions that have an **or** condition. For example, to select rows where `Salary` is smaller than \$100,000 and larger than \$20,000 use `Salary > 20000 & Salary < 100000`. `&` is the symbol for **and**. The table below gives an overview of common operators.
+There are several ways to select a subset of the data to view. The `Filter` box on the left (click the check-box first) can be used with `>` and `<` signs and you can also combine subset commands. For example, `x > 3 & y == 2` would show only those rows for which the variable `x` has values larger than 3 **and** for which `y` has values equal to 2. Note that in R, and most other programming languages, `=` is used to _assign_ a value and `==` to evaluate if the value of a variable is exactly equal to some other value. In contrast `!=` is used to determine if a variable is _unequal_ to some value. You can also use expressions that have an **OR** condition. You can also use expressions that have an **OR** condition. For example, to determine when `Salary` is smaller than \$100,000 **OR** larger than \$20,000 use `Salary > 20000 | Salary < 100000`. `|` is the symbol for **OR** and `&` is the symbol for **AND**
 
 It is also possible to filter using dates. For example, to choose only those dates before June 1st, 2014 enter `Date < "2014-6-1"` into the filter box and press return.
 
@@ -26,45 +26,59 @@ You can also use string matching to select rows. For example, type `grepl("ood",
 
 It is important to note that these filters are _persistent_. A filter entered in one of the Data-tabs will also be applied to other tabs and to any analysis conducted through the Radiant menus. To deactivate a  filter uncheck the `Filter` check-box. To remove a filter simply erase it.
 
-<table class='table table-condensed table-hover' style='width:30%;'>
+<table class='table table-condensed table-hover' style='width:60%;'>
  <thead>
   <tr>
    <th style="text-align:left;"> Operator </th>
    <th style="text-align:left;"> Description </th>
+   <th style="text-align:left;"> Example </th>
   </tr>
  </thead>
 <tbody>
   <tr>
-   <td style="text-align:left;"> &lt; </td>
+   <td style="text-align:left;"> `<` </td>
    <td style="text-align:left;"> less than </td>
+   <td style="text-align:left;"> `price < 5000` </td>
   </tr>
   <tr>
-   <td style="text-align:left;"> &lt;= </td>
+   <td style="text-align:left;"> `<=` </td>
    <td style="text-align:left;"> less than or equal to </td>
+   <td style="text-align:left;"> `carat <= 2` </td>
   </tr>
   <tr>
-   <td style="text-align:left;"> &gt; </td>
+   <td style="text-align:left;"> `>` </td>
    <td style="text-align:left;"> greater than </td>
+   <td style="text-align:left;"> `price > 1000` </td>
   </tr>
   <tr>
-   <td style="text-align:left;"> &gt;= </td>
+   <td style="text-align:left;"> `>=` </td>
    <td style="text-align:left;"> greater than or equal to </td>
+   <td style="text-align:left;"> `carat >= 2` </td>
   </tr>
   <tr>
-   <td style="text-align:left;"> == </td>
+   <td style="text-align:left;"> `==` </td>
    <td style="text-align:left;"> exactly equal to </td>
+   <td style="text-align:left;"> `cut == 'Fair'` </td>
   </tr>
   <tr>
-   <td style="text-align:left;"> != </td>
+   <td style="text-align:left;"> `!=` </td>
    <td style="text-align:left;"> not equal to </td>
+   <td style="text-align:left;"> `cut != 'Fair'` </td>
   </tr>
   <tr>
-   <td style="text-align:left;"> x | y </td>
+   <td style="text-align:left;"> `|` </td>
    <td style="text-align:left;"> x OR y </td>
+   <td style="text-align:left;"> `price > 10000 | cut == 'Premium'` </td>
   </tr>
   <tr>
-   <td style="text-align:left;"> x &amp; y </td>
+   <td style="text-align:left;"> `&` </td>
    <td style="text-align:left;"> x AND y </td>
+   <td style="text-align:left;"> `carat < 2 & cut == 'Fair'` </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> `%in%` </td>
+   <td style="text-align:left;"> x is one of y </td>
+   <td style="text-align:left;"> `cut %in% c('Fair', 'Good')` </td>
   </tr>
 </tbody>
 </table>

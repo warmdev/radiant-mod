@@ -5,11 +5,13 @@
 #' @param dataset Dataset name (string). This can be a dataframe in the global environment or an element in an r_data list from Radiant
 #' @param vars Variables to include in the analysis
 #' @param type Type of correlations to calculate. Options are "pearson", "spearman", and "kendall". "pearson" is the default
+#' @param dec Number of decimals to show
 #' @param data_filter Expression entered in, e.g., Data > View to filter the dataset in Radiant. The expression should be a string (e.g., "price > 10000")
 #'
 #' @return A list with all variables defined in the function as an object of class compare_means
 #'
 #' @examples
+#' result <- correlation("diamonds", c("price","carat"))
 #' result <- correlation("diamonds", c("price","carat","clarity"))
 #' result <- correlation("diamonds", "price:table")
 #' result <- diamonds %>% correlation("price:table")
@@ -22,6 +24,7 @@
 #' @export
 correlation <- function(dataset, vars,
                         type = "pearson",
+                        dec = 2,
                         data_filter = "") {
 
 	## data.matrix as the last step in the chain is about 25% slower using
@@ -41,6 +44,7 @@ correlation <- function(dataset, vars,
 #'
 #' @param object Return value from \code{\link{correlation}}
 #' @param cutoff Show only corrlations larger than the cutoff in absolute value. Default is a cutoff of 0
+#' @param covar Show the covariance matrix (default is FALSE)
 #' @param ... further arguments passed to or from other methods.
 #'
 #' @examples
@@ -54,18 +58,24 @@ correlation <- function(dataset, vars,
 #' @export
 summary.correlation_ <- function(object,
                                 cutoff = 0,
+                                covar = FALSE,
                                 ...) {
 
 	## using correlation_ to avoid print method conflict with nlme
 	## calculate the correlation matrix with p.values using the psych package
-	cmat <- sshhr( corr.test(object$dat, method = object$type) )
+	# object <- result
+	# library(psych)
+	# cutoff <- 0
 
-	cr <- format(round(cmat$r,2))
+	cmat <- sshhr( corr.test(object$dat, method = object$type) )
+	dec <- object$dec
+
+	cr <- format(round(cmat$r, dec))
   cr[abs(cmat$r) < cutoff] <- ""
 	ltmat <- lower.tri(cr)
   cr[!ltmat] <- ""
 
-	cp <- format(round(cmat$p,2))
+	cp <- format(round(cmat$p, dec))
   cp[abs(cmat$r) < cutoff] <- ""
   cp[!ltmat] <- ""
 
@@ -78,9 +88,22 @@ summary.correlation_ <- function(object,
 	cat("Alt. hyp.: variables x and y are correlated\n\n")
 
 	cat("Correlation matrix:\n")
-  print(cr[-1,-ncol(cr)], quote = FALSE)
+  print(cr[-1,-ncol(cr), drop = FALSE], quote = FALSE)
+
 	cat("\np.values:\n")
-  print(cp[-1,-ncol(cp)], quote = FALSE)
+  print(cp[-1,-ncol(cp), drop = FALSE], quote = FALSE)
+
+	if (covar) {
+	  cvmat <- sshhr( cov(object$dat, method = object$type) )
+		cvr <- format(round(cvmat, dec))
+	  cvr[abs(cmat$r) < cutoff] <- ""
+		ltmat <- lower.tri(cvr)
+	  cvr[!ltmat] <- ""
+
+	  cat("\nCovariance matrix:\n")
+	  print(cvr[-1,-ncol(cvr), drop = FALSE], quote = FALSE)
+	}
+
   rm(object)
 }
 
@@ -98,6 +121,8 @@ summary.correlation_ <- function(object,
 #'
 #' @seealso \code{\link{correlation}} to calculate results
 #' @seealso \code{\link{summary.correlation_}} to summarize results
+#'
+#' @importFrom scales alpha
 #'
 #' @export
 plot.correlation_ <- function(x, ...) {
@@ -121,7 +146,7 @@ plot.correlation_ <- function(x, ...) {
 	    text(.8, .8, sig, cex = cex, col = 'blue')
 	}
 	panel.smooth <- function(x, y) {
-    points(x, y)
+    points(jitter(x,.3), jitter(y,.3), pch = 16, col = alpha("black", 0.5))
     ## uncomment the lines below if you want linear and loess lines
     ## in the scatter plot matrix
 		# abline(lm(y~x), col="red")

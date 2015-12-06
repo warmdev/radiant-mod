@@ -90,11 +90,8 @@ output$ui_Manage <- renderUI({
 #     ),
     wellPanel(
       selectInput("saveAs", label = "Save data:",
-      # radioButtons(inputId = "saveAs", label = "Save data:",
                    c("rda" = "rda", "csv" = "csv", "clipboard" = "clipboard",
                      "state" = "state"), selected = "rda"),
-                     # "state" = "state"), selected = "rda", inline = TRUE),
-
       conditionalPanel(condition = "input.saveAs == 'clipboard'",
         uiOutput("ui_clipboard_save")
       ),
@@ -120,9 +117,9 @@ output$ui_Manage <- renderUI({
 
 ## updating the dataset description
 observeEvent(input$updateDescr, {
-  # if (is.null(input$updateDescr) || input$updateDescr == 0) return()
   isolate({
     r_data[[paste0(input$dataset,"_descr")]] <- input$man_data_descr
+    attr(r_data[[input$dataset]],"description") <- input$man_data_descr
     updateCheckboxInput(session = session, "man_add_descr",
                         "Add/edit data description", FALSE)
   })
@@ -153,9 +150,7 @@ output$uiRemoveDataset <- renderUI({
 
 observeEvent(input$removeDataButton, {
   # removing datasets
-  # if (is.null(input$removeDataButton) || input$removeDataButton == 0) return()
   isolate({
-
     # only remove datasets if 1 or more were selected - without this line
     # all files would be removed when the removeDataButton is pressed
     if (is.null(input$removeDataset)) return()
@@ -177,7 +172,6 @@ observeEvent(input$removeDataButton, {
 
 # 'saving' data to clipboard
 observeEvent(input$saveClipData, {
-  # if (is.null(input$saveClipData) || input$saveClipData == 0) return()
   isolate({
     saveClipboardData()
     updateRadioButtons(session = session, inputId = "saveAs", selected = "rda")
@@ -204,6 +198,7 @@ output$downloadData <- downloadHandler(
       }
     } else if (ext == 'csv') {
       write.csv(.getdata(), file, row.names = FALSE)
+      ## some weirdness going on here with the number of digits written to file
       # write_csv(.getdata(), file)
     }
   }
@@ -231,7 +226,7 @@ observeEvent(input$uploadfile, {
 # Reload file list based on folder selection
 observeEvent(input$folder, {
   folder <- input$folder
-  folder <- paste("data", folder, sep = "/")
+  folder <- paste("miracle", folder, sep = "/")
   data_path <- file.path(r_path, folder)
   examples <- list.files(data_path)
   r_data[['datasetlist']] <- character()
@@ -309,9 +304,8 @@ observeEvent(input$url_csv_load, {
   })
 })
 
-# loading all examples files (linked to help files)
+## loading all examples files (linked to help files)
 observeEvent(input$loadExampleData, {
-  # if (not_pressed(input$loadExampleData)) return()
   isolate({
 
     # loading data bundled with Radiant
@@ -356,11 +350,16 @@ observe({
       tmpEnv <- new.env()
       load(inFile$datapath, envir=tmpEnv)
 
+      ## remove characters the may cause problems in shinyAce
+      if (!is.null(tmpEnv$r_state$rmd_report))
+        tmpEnv$r_state$rmd_report %<>% gsub("[\x80-\xFF]", "", .) %>% gsub("\r","\n",.)
+
       r_sessions[[r_ssuid]] <- list(
         r_data = tmpEnv$r_data,
         r_state = tmpEnv$r_state,
         timestamp = Sys.time()
       )
+
       rm(tmpEnv)
     })
   }

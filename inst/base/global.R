@@ -1,24 +1,13 @@
-## No longer need when dplyr 0.5 comes out
-# if (packageVersion("Rcpp") < "0.12.0") stop(
-#   "Radiant requires Rcpp >= 0.12.0. ",
-#   "Please install the latest version of Rcpp from CRAN: ",
-#   "install.packages('Rcpp', repo = 'http://cran.rstudio.com')"
-# )
+# library(shiny)
+# library(magrittr)
 
 ## turn off warnings globally
 # options(warn=-1)
-
-## options to setfor debugging
-# options(shiny.trace = TRUE)
-# options(shiny.error = recover)
-# options(warn = 2)
-# options(warn = 0)
 
 ## encoding
 # options(r_encoding = getOption("encoding"))
 # r_encoding = getOption("encoding")
 r_encoding = "UTF-8"
-
 
 ## path to use for local and server use
 # r_path <- ifelse ((file.exists("../base") && file.exists("../quant")), "..",
@@ -53,20 +42,16 @@ r_pkgs <- c("DiagrammeR", "car", "gridExtra", "GPArotation", "psych", "wordcloud
 r_functions <-
   list("n" = "length", "n_missing" = "n_missing", "n_distinct" = "n_distinct",
        "mean" = "mean_rm", "median" = "median_rm", "mode" = "mode_rm", "sum" = "sum_rm",
-       "sd" = "sd_rm", "se" = "serr", "cv" = "cv", "min" = "min_rm",
-       "max" = "max_rm", "5%" = "p05", "25%" = "p25", "75%" = "p75", "95%" = "p95",
-       "skew" = "skew", "kurtosis" = "kurtosi")
+       "var" = "var_rm", "sd" = "sd_rm", "se" = "serr", "cv" = "cv", "varp" = "varp_rm",
+       "sdp" = "sdp_rm", "min" = "min_rm", "max" = "max_rm", "5%" = "p05",
+       "25%" = "p25", "75%" = "p75", "95%" = "p95", "skew" = "skew",
+       "kurtosis" = "kurtosi")
 # options(r_functions = r_functions); rm(r_functions)
 
 ## for report and code in menu R
 knitr::opts_knit$set(progress = TRUE)
 knitr::opts_chunk$set(echo = FALSE, comment = NA, cache = FALSE, message = FALSE,
                       warning = FALSE, fig.path = "~/r_figures/")
-
-## using DT rather than Shiny versions of datatable
-renderDataTable <- DT::renderDataTable
-dataTableOutput <- DT::dataTableOutput
-datatable       <- DT::datatable
 
 ## running local or on a server
 if (Sys.getenv('SHINY_PORT') == "") {
@@ -75,26 +60,34 @@ if (Sys.getenv('SHINY_PORT') == "") {
   options(shiny.maxRequestSize = -1) ## no limit to filesize locally
 
   ## if radiant package was not loaded load dependencies
-  if (!"package:radiant" %in% search())
-    sapply(r_pkgs, require, character.only = TRUE)
+  # if (!"package:radiant" %in% search())
+    # sapply(r_pkgs, require, character.only = TRUE)
+
+  ## needed but clunky
+  # sapply(r_pkgs, require, character.only = TRUE)
 
 } else {
   r_local <- FALSE
-  options(shiny.maxRequestSize = 5 * 1024^2)   ## limit upload filesize on server (5MB)
-  sapply(r_pkgs, require, character.only = TRUE)
+  options(shiny.maxRequestSize = 10 * 1024^2)   ## limit upload filesize on server (5MB)
+
+  ## needed but clunky
+  # sapply(r_pkgs, require, character.only = TRUE)
 }
+
+## needed but clunky
+sapply(r_pkgs, require, character.only = TRUE)
 
 ## environment to hold session information
 r_sessions <- new.env(parent = emptyenv())
 
 ## create directory to hold session files
-if (!r_local)
-  "~/r_sessions/" %>% { if (!file.exists(.)) dir.create(., recursive = TRUE) }
+file.path(normalizePath("~"),"r_sessions") %>% {if (!file.exists(.)) dir.create(.)}
 
 ## adding the figures path to avoid making a copy of all figures in www/figures
 addResourcePath("figures", file.path(r_path,"base/tools/help/figures/"))
 addResourcePath("imgs", file.path(r_path,"base/www/imgs/"))
 addResourcePath("js", file.path(r_path,"base/www/js/"))
+# addResourcePath("rmarkdown", file.path(r_path,"base/www/rmarkdown/"))
 
 ## using local mathjax if available to avoid shiny bug
 ## https://github.com/rstudio/shiny/issues/692
@@ -103,14 +96,6 @@ if (r_local && "MathJaxR" %in% installed.packages()[,"Package"]) {
   addResourcePath("MathJax", file.path(system.file(package = "MathJaxR"), "MathJax/"))
   withMathJax <- MathJaxR::withMathJaxR
 }
-
-
-## Windows or Mac
-# if (.Platform$OS.type == 'windows') {
-#   Sys.setlocale(category = 'LC_ALL','English_United States.1252')
-# } else {
-#   Sys.setlocale(category = 'LC_ALL','en_US.UTF-8')
-# }
 
 nav_ui <-
   list(windowTitle = "Radiant", id = "nav_radiant", inverse = TRUE,
@@ -155,6 +140,9 @@ js_head <-
   tags$head(
     tags$script(src = "js/session.js"),
     tags$script(src = "js/jquery-ui.custom.min.js"),
+    tags$script(src = "js/returnTextAreaBinding.js"),
+    tags$script(src = "js/returnTextInputBinding.js"),
+    # tags$script(src = "js/draggable_modal.js"),
     tags$script(src = "js/video_reset.js"),
     tags$link(rel = "shortcut icon", href = "imgs/icon.png")
   )

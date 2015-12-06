@@ -4,7 +4,7 @@
 
 ## alternative hypothesis options
 sp_alt <- list("Two sided" = "two.sided", "Less than" = "less", "Greater than" = "greater")
-sp_plots <- c("Histogram" = "hist", "Simulate" = "simulate")
+sp_plots <- c("Bar" = "bar", "Simulate" = "simulate")
 
 ## list of function arguments
 sp_args <- as.list(formals(single_prop))
@@ -20,15 +20,16 @@ sp_inputs <- reactive({
 })
 
 output$ui_sp_var <- renderUI({
-  vars <- groupable_vars()
+  # vars <- groupable_vars()
+  vars <- c("None", groupable_vars())
   selectInput(inputId = "sp_var", label = "Variable (select one):",
               choices = vars,
               selected = state_single("sp_var",vars), multiple = FALSE)
 })
 
 output$up_sp_lev <- renderUI({
-  levs <- if (not_available(input$sp_var)) c()
-          else .getdata()[1,input$sp_var] %>% as.factor %>% levels
+  if (not_available(input$sp_var)) return()
+  levs <- .getdata()[[input$sp_var]] %>% as.factor %>% levels
 
   selectInput(inputId = "sp_lev", label = "Choose level:", choices = levs,
               selected = state_single("sp_lev",levs), multiple = FALSE)
@@ -40,7 +41,7 @@ output$ui_single_prop <- renderUI({
       wellPanel(
         selectizeInput(inputId = "sp_plots", label = "Select plots:",
                 choices = sp_plots,
-                selected = state_single("sp_plots", sp_plots, "hist"),
+                selected = state_single("sp_plots", sp_plots, "bar"),
                 multiple = TRUE,
                 options = list(plugins = list('remove_button', 'drag_drop')))
       )
@@ -52,14 +53,17 @@ output$ui_single_prop <- renderUI({
   	  	choices = sp_alt,
         selected = state_single("sp_alternative", sp_alt, sp_args$alternative),
   	  	multiple = FALSE),
-    	sliderInput('sp_conf_lev',"Significance level:", min = 0.85, max = 0.99,
+    	sliderInput('sp_conf_lev',"Confidence level:", min = 0.85, max = 0.99,
     		value = state_init('sp_conf_lev', sp_args$conf_lev), step = 0.01),
       numericInput("sp_comp_value", "Comparison value:",
                    state_init('sp_comp_value', sp_args$comp_value),
-                   min = 0.01, max = 0.99, step = 0.01)),
-
+                   min = 0.01, max = 0.99, step = 0.01)
+      # radioButtons("sp_type", label = "Test:", c("Binomial" = "binom", "Chi-square" = "chisq"),
+      #     selected = state_init("sp_type", "binom"),
+      #     inline = TRUE)
+    ),
     help_and_report(modal_title = 'Single proportion',
-  	                fun_name = 'single_prop',
+                    fun_name = 'single_prop',
                     help_file = inclMD(file.path(r_path,"quant/tools/help/single_prop.md")))
   )
 })
@@ -95,34 +99,31 @@ output$single_prop <- renderUI({
 		             	output_panels = sp_output_panels)
 })
 
+sp_available <- reactive({
+  if (not_available(input$sp_var))
+    return("This analysis requires a categorical variable. In none are available\nplease select another dataset.\n\n" %>% suggest_data("consider"))
+
+  if (input$sp_comp_value %>% { is.na(.) | . > 1 | . <= 0 })
+    return("Please choose a comparison value between 0 and 1")
+
+  "available"
+})
+
 .single_prop <- reactive({
 	do.call(single_prop, sp_inputs())
 })
 
 .summary_single_prop <- reactive({
-
-  if (not_available(input$sp_var))
-    return("This analysis requires a variable of type factor.\nPlease select another dataset.\n\n" %>% suggest_data("diamonds"))
-
- if (input$sp_comp_value %>% { is.na(.) | . > 1 | . < 0 })
-    return("Please choose a comparison value between 0 and 1")
-
+  if (sp_available() != "available") return(sp_available())
   summary(.single_prop())
 })
 
 .plot_single_prop <- reactive({
-
-  if (not_available(input$sp_var))
-    return("This analysis requires a variable of type factor.\nPlease select another dataset.\n\n" %>% suggest_data("diamonds"))
-
- if (input$sp_comp_value %>% { is.na(.) | . > 1 | . < 0 })
-    return("Please choose a comparison value between 0 and 1")
-
+  if (sp_available() != "available") return(sp_available())
   plot(.single_prop(), plots = input$sp_plots, shiny = TRUE)
 })
 
-observe({
-  if (not_pressed(input$single_prop_report)) return()
+observeEvent(input$single_prop_report, {
   isolate({
     outputs <- c("summary","plot")
     inp_out <- list(plots = input$sp_plots) %>% list("",.)

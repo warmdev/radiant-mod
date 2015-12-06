@@ -32,8 +32,10 @@ output$ui_sample_size <- renderUI({
 		    numericInput("ss_p_prop", "Sample proportion:", min = 0, max = 1,
 		  		value = state_init("ss_p_prop", .5), step = .05)
 	  	),
-	    numericInput("ss_zval", "Confidence level (z-value):", min = 0,
-	  		value = state_init("ss_zval", 1.96), step = .1),
+	    numericInput("ss_conf_lev", "Confidence level (z-value):", min = 0,
+	  		value = state_init("ss_conf_lev", 1.96), step = .1),
+      # numericInput("ss_conf_lev", "Confidence level (%):", min = 0, max = 1,
+      #   value = state_init("ss_conf_lev", 0.95)),
 	    numericInput("ss_incidence", "Incidence rate:", min = 0, max = 1,
 	  		value = state_init("ss_incidence", 1), step = .05),
 	    numericInput("ss_response", "Response rate:", min = 0, max = 1,
@@ -77,8 +79,7 @@ output$sample_size <- renderUI({
   summary(.sample_size())
 })
 
-observe({
-  if (not_pressed(input$sample_size_report)) return()
+observeEvent(input$sample_size_report, {
   isolate({
     update_report(inp_main = clean_args(ss_inputs(), ss_args),
                    fun_name = "sample_size", outputs = "summary", figs = FALSE)

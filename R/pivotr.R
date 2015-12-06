@@ -287,7 +287,8 @@ make_dt <- function(pvt,
   tab <- filter(tab, tab[,1] != "Total")
 
   dt_tab <- tab %>%
-  DT::datatable(container = sketch, rownames = FALSE,
+  DT::datatable(container = sketch, selection = "none",
+    rownames = FALSE,
     filter = list(position = "top"),
     # filter = list(position = "top", clear = FALSE, plain = TRUE),
     style = ifelse (pvt$shiny, "bootstrap", "default"),
@@ -313,10 +314,12 @@ make_dt <- function(pvt,
       backgroundRepeat = "no-repeat",
       backgroundPosition = "center")
   } else if (format == "heat") {
-    brks <- quantile(tab[, cn_nt], probs = seq(.05, .95, .05), na.rm = TRUE)
+    ## round seems to ensure that 'cuts' are ordered according to DT::stylInterval
+    brks <- quantile(tab[, cn_nt], probs = seq(.05, .95, .05), na.rm = TRUE) %>% round(5)
     clrs <- seq(255, 40, length.out = length(brks) + 1) %>%
       round(0) %>%
       {paste0("rgb(255,", ., ",", .,")")}
+
     dt_tab %<>% DT::formatStyle(cn_nt, backgroundColor = DT::styleInterval(brks, clrs))
   }
 
@@ -339,6 +342,11 @@ make_dt <- function(pvt,
 #' @param flip Flip the axes in a plot (FALSE or TRUE)
 #' @param shiny Did the function call originate inside a shiny app
 #' @param ... further arguments passed to or from other methods
+#'
+#' @examples
+#' pivotr("diamonds", cvars = "cut") %>% plot
+#' pivotr("diamonds", cvars = c("cut","clarity")) %>% plot
+#' pivotr("diamonds", cvars = c("cut","clarity","color")) %>% plot
 #'
 #' @seealso \code{\link{pivotr}} to generate summaries
 #' @seealso \code{\link{summary.pivotr}} to show summaries
@@ -363,16 +371,18 @@ plot.pivotr <- function(x, type = "dodge", perc = FALSE, flip = FALSE, shiny = F
     if (length(ctot) > 0) tab %<>% select(-matches("Total"))
 
     plot_list[[1]] <-
-      ggplot(tab %>% gather_(cvars[1], nvar) %>% na.omit, aes_string(x = cvars[1], y = nvar, fill = cvars[2])) +
-        geom_bar(stat="identity", position = type, alpha=.7)
+      tab %>% gather_(cvars[1], nvar, setdiff(colnames(.),cvars[2])) %>% na.omit %>%
+        ggplot(aes_string(x = cvars[1], y = nvar, fill = cvars[2])) +
+          geom_bar(stat="identity", position = type, alpha=.7)
   } else if (length(cvars) == 3) {
     ctot <- which(colnames(tab) == "Total")
     if (length(ctot) > 0) tab %<>% select(-matches("Total"))
 
     plot_list[[1]] <-
-      ggplot(tab %>% gather_(cvars[1], nvar) %>% na.omit, aes_string(x = cvars[1], y = nvar, fill = cvars[2])) +
-        geom_bar(stat="identity", position = type, alpha=.7) +
-        facet_grid(paste(cvars[3], '~ .'))
+      tab %>% gather_(cvars[1], nvar, setdiff(colnames(.),cvars[2:3])) %>% na.omit %>%
+        ggplot(aes_string(x = cvars[1], y = nvar, fill = cvars[2])) +
+          geom_bar(stat="identity", position = type, alpha=.7) +
+          facet_grid(paste(cvars[3], '~ .'))
   } else {
     ## You are pushing this feature a bit too far dude
     return(invisible())
@@ -381,6 +391,6 @@ plot.pivotr <- function(x, type = "dodge", perc = FALSE, flip = FALSE, shiny = F
   if (flip) plot_list[[1]] <- plot_list[[1]] + coord_flip()
   if (perc) plot_list[[1]] <- plot_list[[1]] + scale_y_continuous(labels = percent)
 
-  sshhr( do.call(arrangeGrob, c(plot_list, list(ncol = 1))) ) %>%
+  sshhr( do.call(gridExtra::arrangeGrob, c(plot_list, list(ncol = 1))) ) %>%
     { if (shiny) . else print(.) }
 }

@@ -2,9 +2,9 @@ shinyServer(function(input, output, session) {
 
   ## source shared functions
   source("tools/data/manage.R", local = TRUE)
-  source("init.R", encoding = r_encoding, local = TRUE)
+	source("init.R", encoding = r_encoding, local = TRUE)
 	source("radiant.R", encoding = r_encoding, local = TRUE)
-  
+
 	## for shiny-server
  	if (!"package:radiant" %in% search()) {
  		if (r_path == "..") {
@@ -19,6 +19,7 @@ shinyServer(function(input, output, session) {
       set_class <- radiant::set_class
 		}
 	} else {
+    # environment(radiant) <- environment()
 	  copy_from(radiant, state_init, state_single, state_multiple)
 	}
 

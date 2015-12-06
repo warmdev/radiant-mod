@@ -21,6 +21,8 @@ output$ui_expl_vars <- renderUI({
   isNum <- "numeric" == .getclass() | "integer" == .getclass()
   vars <- varnames()[isNum]
   if (not_available(vars)) return()
+
+
   selectInput("expl_vars", label = "Select variable(s):", choices = vars,
     selected = state_multiple("expl_vars",vars), multiple = TRUE,
     size = min(8, length(vars)), selectize = FALSE)
@@ -29,18 +31,22 @@ output$ui_expl_vars <- renderUI({
 output$ui_expl_byvar <- renderUI({
   vars <- groupable_vars()
   if (not_available(vars)) return()
+
+  if (any(vars %in% input$expl_vars)) {
+    vars <- setdiff(vars, input$expl_vars)
+  }
+
   isolate({
     if (available(r_state$expl_byvar) && all(r_state$expl_byvar %in% vars)) {
-      sel <- r_state$expl_byvar
-      ind1 <- which(sel %in% vars)
-      ind2 <- sapply(sel, function(x) which(x == vars))
-      vars[ind1] <- sel
-      names(vars)[ind1] <- names(vars)[ind2]
+      ## can't use unique here - removes variable type information
+      vars <- c(r_state$expl_byvar, vars) %>% .[!duplicated(.)]
     }
+
+    sel <- use_input("expl_byvar", vars, fun = "state_multiple")
   })
 
   selectizeInput("expl_byvar", label = "Group by:", choices = vars,
-    selected = state_multiple("expl_byvar", vars, ""), multiple = TRUE,
+    selected = sel, multiple = TRUE,
     options = list(placeholder = 'Select group-by variable',
                    plugins = list('remove_button', 'drag_drop'))
   )
@@ -94,6 +100,9 @@ output$ui_Explore <- renderUI({
 
 .explore <- reactive({
   if (not_available(input$expl_vars) || is.null(input$expl_top)) return()
+
+  if (available(input$expl_byvar) && any(input$expl_byvar %in% input$expl_vars)) return()
+
   withProgress(message = 'Calculating', value = 0, {
     sshhr( do.call(explore, expl_inputs()) )
   })
@@ -194,6 +203,9 @@ output$expl_summary <- renderPrint({
 
 observeEvent(input$explore_report, {
   isolate({
+    ## add command to store data and/or download it
+    # xcmd <-
+    #     paste0("# store_reg(result, data = '", input$dataset, "', type = 'prediction', name = '", input$reg_store_pred_name,"')\n") %>%
     update_report(inp_main = c(clean_args(expl_inputs(), expl_args), tabsort = "", tabfilt = ""),
                   fun_name = "explore",
                   inp_out = list(list(top = input$expl_top)),

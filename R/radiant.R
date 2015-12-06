@@ -118,7 +118,12 @@ getdata <- function(dataset,
                     rows = NULL,
                     na.rm = TRUE) {
 
-  filt %<>% gsub("\\s","", .) %>% gsub("\"","\'",.)
+
+  # print(search())
+  # print(parent.frame())
+
+  # filt %<>% gsub("\\s","", .) %>% gsub("\"","\'",.)
+  filt %<>% gsub("\\n","", .) %>% gsub("\"","\'",.)
   { if (!is_string(dataset)) {
       dataset
     } else if (exists("r_env")) {
@@ -176,6 +181,40 @@ factorizer <- function(dat, safx = 20) {
   # rmiss <- . %>% ifelse (is.na(.), "[Empty]", .) %>% ifelse (. == "", "[Empty]", .)
   # mutate_each_(dat, funs(rmiss), vars = toFct)  %>%  # replace missing levels
   mutate_each_(dat, funs(as.factor), vars = toFct)
+}
+
+#' Load an rda file and add it to the radiant data list (r_data)
+#'
+#' @param fn File name string
+#' @param ext File extension ("rda" is the default)
+#'
+#' @return Data.frame in r_data
+#'
+#' @export
+loadrda <- function(fn, ext = "rda") {
+
+  # filename <- basename(fn)
+  # ## objname is used as the name of the data.frame
+  # objname <- sub(paste0(".",ext,"$"),"", filename)
+
+  # ## if ext isn't in the filename nothing was replaced and so ...
+  # if (objname == filename) {
+  #   fext <- tools::file_ext(filename) %>% tolower
+  #   message(paste0("### The filename extension (",fext,") does not match the one expected (",ext,"). Please specify the file extension used for the r-data file"))
+  #   return()
+  # }
+
+  # ## objname will hold the name of the object(s) inside the R datafile
+  # robjname <- try(load(fn), silent = TRUE)
+  # if (is(robjname, 'try-error')) {
+  #   message("### There was an error loading the data. Please make sure the data are in r-data format and the correct file extension has been specified.")
+  # } else {
+  #   if (exists("r_data") && length(robjname == 1)) {
+  #     r_data[[objname]] <<- as.data.frame(get(robjname))
+  #     r_data[[paste0(objname,"_descr")]] <<- attr(r_data[[objname]], "description")
+  #     r_data[['datasetlist']] <<- c(objname, r_data[['datasetlist']]) %>% unique
+  #   }
+  # }
 }
 
 #' Load a csv file with read.csv and read_csv
@@ -322,7 +361,7 @@ changedata <- function(dataset,
 #' @details View, search, sort, etc. your data
 #'
 #' @param dataset Name of the dataframe to change
-#' @param vars Variables to so (default is all)
+#' @param vars Variables to show (default is all)
 #' @param filt Filter to apply to the specified dataset. For example "price > 10000" if dataset is "diamonds" (default is "")
 #' @param rows Select rows in the specified dataset. For example "1:10" for the first 10 rows or "n()-10:n()" for the last 10 rows (default is NULL)
 #' @param na.rm Remove rows with missing values (default is FALSE)
@@ -357,7 +396,7 @@ viewdata <- function(dataset,
                   onclick = "window.close();", "Stop")
     ),
     server = function(input, output, session) {
-      widget <- DT::datatable(dat,
+      widget <- DT::datatable(dat, selection = "none",
         rownames = FALSE, style = "bootstrap",
         filter = filt,
         # filter = alist(position = "top", clear = FALSE, plain = FALSE),
@@ -413,7 +452,7 @@ getclass <- function(dat) {
 #' is_empty(NULL)
 #'
 #' @export
-is_empty <- function(x, empty = "") if (is.null(x) || x == empty) TRUE else FALSE
+is_empty <- function(x, empty = "") if (length(x) == 0 || is.na(x) || x == empty) TRUE else FALSE
 
 #' Is input a string?
 #'
@@ -500,12 +539,12 @@ win_launcher <- function(app = c("analytics", "marketing", "quant", "base")) {
     pt <- normalizePath(pt, winslash='/')
 
     fn1 <- file.path(pt, "radiant.bat")
-    launch_string <- paste0(Sys.which('R'), " -e \"if (!require(radiant)) { install.packages('radiant', repos = 'http://vnijs.github.io/radiant_miniCRAN/') }; library(radiant); shiny::runApp(system.file(\'", app[1], "\', package='radiant'), port = 4444, launch.browser = TRUE)\"")
+    launch_string <- paste0("\"",Sys.which('R'), "\" -e \"if (!require(radiant)) { install.packages('radiant', repos = 'http://vnijs.github.io/radiant_miniCRAN/', type = 'binary') }; library(radiant); shiny::runApp(system.file(\'", app[1], "\', package='radiant'), port = 4444, launch.browser = TRUE)\"")
     cat(launch_string, file=fn1, sep="\n")
     Sys.chmod(fn1, mode = "0755")
 
     fn2 <- file.path(pt, "update_radiant.bat")
-    launch_string <- paste0(Sys.which('R'), " -e \"install.packages('radiant', repos = 'http://vnijs.github.io/radiant_miniCRAN/')\"")
+    launch_string <- paste0("\"", Sys.which('R'), "\" -e \"install.packages('radiant', repos = 'http://vnijs.github.io/radiant_miniCRAN/', type = 'binary')\"\npause(1000)")
     cat(launch_string,file=fn2,sep="\n")
     Sys.chmod(fn2, mode = "0755")
 
@@ -551,12 +590,12 @@ mac_launcher <- function(app = c("analytics", "marketing", "quant", "base")) {
     if (!file.exists(local_dir)) dir.create(local_dir, recursive = TRUE)
 
     fn1 <- paste0("/Users/",Sys.getenv("USER"),"/Desktop/radiant.command")
-    launch_string <- paste0("#!/usr/bin/env Rscript\nif (!require(radiant)) {\n  install.packages('radiant', repos = 'http://vnijs.github.io/radiant_miniCRAN/')\n}\n\nlibrary(radiant)\nshiny::runApp(system.file(\'", app[1], "\', package='radiant'), port = 4444, launch.browser = TRUE)\n")
+    launch_string <- paste0("#!/usr/bin/env Rscript\nif (!require(radiant)) {\n  install.packages('radiant', repos = 'http://vnijs.github.io/radiant_miniCRAN/', type = 'binary')\n}\n\nlibrary(radiant)\nshiny::runApp(system.file(\'", app[1], "\', package='radiant'), port = 4444, launch.browser = TRUE)\n")
     cat(launch_string,file=fn1,sep="\n")
     Sys.chmod(fn1, mode = "0755")
 
     fn2 <- paste0("/Users/",Sys.getenv("USER"),"/Desktop/update_radiant.command")
-    launch_string <- paste0("#!/usr/bin/env Rscript\ninstall.packages('radiant', repos = 'http://vnijs.github.io/radiant_miniCRAN/')")
+    launch_string <- paste0("#!/usr/bin/env Rscript\ninstall.packages('radiant', repos = 'http://vnijs.github.io/radiant_miniCRAN/', type = 'binary')\nSys.sleep(1000)")
     cat(launch_string,file=fn2,sep="\n")
     Sys.chmod(fn2, mode = "0755")
 
@@ -608,7 +647,7 @@ lin_launcher <- function(app = c("analytics", "marketing", "quant", "base")) {
     Sys.chmod(fn1, mode = "0755")
 
     fn2 <- paste0("/Users/",Sys.getenv("USER"),"/Desktop/update_radiant.sh")
-    launch_string <- paste0("#!/usr/bin/env Rscript\ninstall.packages('radiant', repos = 'http://vnijs.github.io/radiant_miniCRAN/')")
+    launch_string <- paste0("#!/usr/bin/env Rscript\ninstall.packages('radiant', repos = 'http://vnijs.github.io/radiant_miniCRAN/')\nsleep(1000)")
     cat(launch_string,file=fn2,sep="\n")
     Sys.chmod(fn2, mode = "0755")
 
@@ -683,6 +722,38 @@ copy_from <- function(.from, ...) {
   invisible(NULL)
 }
 
+#' Import all functions that a package imports for use with Shiny
+#'
+#' @param .from The package to pull the function from
+#'
+#' @examples
+#'
+#' copy_imported(radiant)
+#'
+#' @export
+copy_imported <- function(.from) {
+
+  from <- as.character(substitute(.from))
+
+  import_list <- getNamespaceImports(from)
+  parent  <- parent.frame()
+  import_names <- names(import_list)
+
+  for (i in unique(import_names)) {
+    if (i %in% c("base","shiny","magrittr")) next
+
+    symbols <- unlist(import_list[which(i == import_names)])
+
+    for (j in symbols) {
+      # do.call(import::from, list(i = as.symbol(i), j = as.symbol(j)))
+      fn <- get(j, envir = asNamespace(i), inherits = TRUE)
+      assign(j, eval.parent(call("function", formals(fn), body(fn))), parent)
+    }
+  }
+
+  invisible(NULL)
+}
+
 #' Source all package functions
 #'
 #' @details Equivalent of source with local=TRUE for all package functions. Adapted from functions by smbache, author of the import package. See \url{https://github.com/smbache/import/issues/4} for a discussion. This function will be depracated when (if) it is included in \url{https://github.com/smbache/import}
@@ -697,12 +768,13 @@ copy_from <- function(.from, ...) {
 copy_all <- function(.from) {
 
   from <- as.character(substitute(.from))
+
   ls(getNamespace(from), all.names=TRUE) %>%
     .[grep("^\\.", ., invert = TRUE)] %>%
     set_names(.,.) -> symbols
 
   parent  <- parent.frame()
-  from    <- as.character(substitute(.from))
+  # from    <- as.character(substitute(.from))
 
   for (s in seq_along(symbols)) {
     fn <- get(symbols[s], envir = asNamespace(from), inherits = TRUE)
@@ -742,8 +814,13 @@ copy_all <- function(.from) {
 #' @export
 state_init <- function(inputvar, init = "") {
   if (!exists("r_state")) stop("Make sure to use copy_from inside shinyServer for the state_* functions")
-  r_state %>% { if (is.null(.[[inputvar]])) init else .[[inputvar]] }
+  # if (is.null(r_state[[inputvar]])) init else r_state[[inputvar]]
+  if (is_empty(r_state[[inputvar]])) init else r_state[[inputvar]]
 }
+
+# state_init <- function(inputvar, init = "", pf = parent.frame()) {
+# print(parent.frame())
+# r_state %>% { if (is.null(.[[inputvar]])) init else .[[inputvar]] }
 
 #' Set initial value for shiny input from a list of values
 #'
@@ -772,7 +849,8 @@ state_init <- function(inputvar, init = "") {
 #' @export
 state_single <- function(inputvar, vals, init = character(0)) {
   if (!exists("r_state")) stop("Make sure to use copy_from inside shinyServer for the state_* functions")
-  r_state %>% { if (is.null(.[[inputvar]])) init else vals[vals == .[[inputvar]]] }
+  # r_state %>% { if (is.null(.[[inputvar]])) init else vals[vals == .[[inputvar]]] }
+  r_state %>% { if (is_empty(.[[inputvar]])) init else vals[vals == .[[inputvar]]] }
 }
 
 #' Set initial values for shiny input from a list of values
@@ -805,7 +883,8 @@ state_single <- function(inputvar, vals, init = character(0)) {
 state_multiple <- function(inputvar, vals, init = character(0)) {
   if (!exists("r_state")) stop("Make sure to use copy_from inside shinyServer for the state_* functions")
   r_state %>%
-    { if (is.null(.[[inputvar]]))
+    # { if (is.null(.[[inputvar]]))
+    { if (is_empty(.[[inputvar]]))
         ## "a" %in% character(0) --> FALSE, letters[FALSE] --> character(0)
         vals[vals %in% init]
       else
@@ -826,4 +905,55 @@ state_multiple <- function(inputvar, vals, init = character(0)) {
 print.gtable <- function(x, ...) {
   if (is.ggplot(x)) x <- ggplotGrob(x)
   grid::grid.draw(x)
+}
+
+#' Labels for confidence intervals
+#'
+#' @param alt Type of hypothesis ("two.sided","less","greater")
+#' @param cl Confidence level
+#'
+#' @return A character vector with labels for a confidence interval
+#'
+#' @examples
+#' ci_label("less",.95)
+#' ci_label("two.sided",.95)
+#' ci_label("greater",.9)
+#'
+#' @export
+ci_label <- function(alt, cl) {
+  if (alt == "less") {
+    c("0%", paste0(100*cl,"%"))
+  } else if (alt == "greater") {
+    c(paste0(100*(1-cl),"%"), "100%")
+  } else {
+    {100 * (1-cl)/2} %>%
+      c(., 100 - .) %>%
+      round(1) %>%
+      paste0(.,"%")
+  }
+}
+
+#' Values at confidence levels
+#'
+#' @param dat Data
+#' @param alt Type of hypothesis ("two.sided","less","greater")
+#' @param cl Confidence level
+#'
+#' @return A vector with values at a confidence level
+#'
+#' @examples
+#' ci_perc(0:100, "less",.95)
+#' ci_perc(0:100, "greater",.95)
+#' ci_perc(0:100, "two.sided",.80)
+#'
+#' @export
+ci_perc <- function(dat, alt, cl) {
+  probs <- if (alt == 'two.sided') {
+    ((1-cl)/2) %>% c(., 1 - .)
+  } else if (alt == 'less') {
+    1-cl
+  } else {
+    cl
+  }
+  quantile(dat, probs = probs)
 }

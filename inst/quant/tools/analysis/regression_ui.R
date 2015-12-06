@@ -8,11 +8,11 @@ reg_check <- c("Standardized coefficients" = "standardize",
                "Stepwise selection" = "stepwise")
 reg_sum_check <- c("RMSE" = "rmse", "Sum of squares" = "sumsquares",
                    "VIF" = "vif", "Confidence intervals" = "confint")
-reg_lines <- c("Line" = "line", "Loess" = "loess")
+reg_lines <- c("Line" = "line", "Loess" = "loess", "Jitter" = "jitter")
 reg_plots <- c("None" = "", "Histograms" = "hist",
                "Correlations" = "correlations", "Scatter" = "scatter",
                "Dashboard" = "dashboard",
-               "Residual vs predictor" = "resid_pred",
+               "Residual vs explanatory" = "resid_pred",
                "Coefficient plot" = "coef",
                "Leverage plots" = "leverage")
 
@@ -61,11 +61,13 @@ reg_pred_inputs <- reactive({
 
   reg_pred_args$pred_cmd <- reg_pred_args$pred_data <- reg_pred_args$pred_vars <- ""
   if (input$reg_predict == "cmd")
-    reg_pred_args$pred_cmd <- gsub("\\s", "", input$reg_pred_cmd)
+    reg_pred_args$pred_cmd <- gsub("\\s", "", input$reg_pred_cmd) %>% gsub("\"","\'",.)
   else if (input$reg_predict == "data")
     reg_pred_args$pred_data <- input$reg_pred_data
   else if (input$reg_predict == "vars")
     reg_pred_args$pred_vars <- input$reg_pred_vars
+
+    # reg_pred_args$pred_cmd <- gsub("\\s", "", input$reg_pred_cmd)
 
   reg_pred_args
 })
@@ -84,7 +86,7 @@ reg_pred_plot_inputs <- reactive({
 output$ui_reg_dep_var <- renderUI({
   isNum <- "numeric" == .getclass() | "integer" == .getclass()
   vars <- varnames()[isNum]
-  selectInput(inputId = "reg_dep_var", label = "Dependent variable:", choices = vars,
+  selectInput(inputId = "reg_dep_var", label = "Response variable:", choices = vars,
     selected = state_single("reg_dep_var",vars), multiple = FALSE)
 })
 
@@ -101,7 +103,7 @@ output$ui_reg_indep_var <- renderUI({
       {if (!is_empty(.) && . %in% vars) . else character(0)}
   })
 
-  selectInput(inputId = "reg_indep_var", label = "Independent variables:", choices = vars,
+  selectInput(inputId = "reg_indep_var", label = "Explanatory variables:", choices = vars,
     selected = state_multiple("reg_indep_var", vars, init),
     multiple = TRUE, size = min(10, length(vars)), selectize = FALSE)
 })
@@ -171,7 +173,7 @@ output$ui_reg_facet_row <- renderUI({
 output$ui_reg_facet_col <- renderUI({
   vars <- input$reg_indep_var
   vars <- c("None" = ".", vars)
-  selectizeInput("reg_facet_col", 'Facet column', vars,
+  selectizeInput("reg_facet_col", "Facet column", vars,
                  selected = state_single("reg_facet_col", vars, "."),
                  multiple = FALSE)
 })
@@ -256,7 +258,7 @@ output$ui_regression <- renderUI({
                          input.reg_predict == 'data' |
                          (input.reg_sum_check && input.reg_sum_check.indexOf('confint') >= 0) |
                          input.reg_plots == 'coef'",
-             sliderInput("reg_conf_lev", "Adjust confidence level:", min = 0.70,
+             sliderInput("reg_conf_lev", "Confidence level:", min = 0.80,
                          max = 0.99, value = state_init("reg_conf_lev",.95),
                          step = 0.01)
         ),
@@ -287,11 +289,11 @@ reg_plot <- reactive({
   plot_width <- 650
   nrVars <- length(input$reg_indep_var) + 1
 
-  if (input$reg_plots == 'hist') plot_height <- (plot_height / 2) * ceiling(nrVars / 2)
-  if (input$reg_plots == 'dashboard') plot_height <- 1.5 * plot_height
-  if (input$reg_plots == 'correlations') { plot_height <- 150 * nrVars; plot_width <- 150 * nrVars }
-  if (input$reg_plots == 'coef') plot_height <- 300 + 20 * length(.regression()$model$coefficients)
-  if (input$reg_plots %in% c('scatter','leverage','resid_pred'))
+  if (input$reg_plots == "hist") plot_height <- (plot_height / 2) * ceiling(nrVars / 2)
+  if (input$reg_plots == "dashboard") plot_height <- 1.5 * plot_height
+  if (input$reg_plots == "correlations") { plot_height <- 150 * nrVars; plot_width <- 150 * nrVars }
+  if (input$reg_plots == "coef") plot_height <- 300 + 20 * length(.regression()$model$coefficients)
+  if (input$reg_plots %in% c("scatter","leverage","resid_pred"))
     plot_height <- (plot_height/2) * ceiling((nrVars-1) / 2)
 
   list(plot_width = plot_width, plot_height = plot_height)
@@ -342,10 +344,10 @@ output$regression <- renderUI({
 reg_available <- reactive({
 
   if (not_available(input$reg_dep_var))
-    return("This analysis requires a dependent variable of type integer\nor numeric and one or more independent variables.\nIf these variables are not available please select another dataset.\n\n" %>% suggest_data("diamonds"))
+    return("This analysis requires a response variable of type integer\nor numeric and one or more explanatory variables.\nIf these variables are not available please select another dataset.\n\n" %>% suggest_data("diamonds"))
 
   if (not_available(input$reg_indep_var))
-    return("Please select one or more independent variables.\n\n" %>% suggest_data("diamonds"))
+    return("Please select one or more explanatory variables.\n\n" %>% suggest_data("diamonds"))
 
   "available"
 })
@@ -403,8 +405,8 @@ observeEvent(input$regression_report, {
       inp_out[[2 + figs]] <- clean_args(reg_pred_inputs(), reg_pred_args[-1])
       outputs <- c(outputs, "result <- predict")
       xcmd <-
-        paste0("# store_reg(result, data = \"", input$dataset, "\", type = \"prediction\", name = \"", input$reg_store_pred_name,"\")\n") %>%
-        paste0("# write.csv(result, file = \"~/reg_predictions.csv\", row.names = FALSE)")
+        paste0("# store_reg(result, data = '", input$dataset, "', type = 'prediction', name = '", input$reg_store_pred_name,"')\n") %>%
+        paste0("# write.csv(result, file = '~/reg_predictions.csv', row.names = FALSE)")
       if (!is_empty(input$reg_xvar)) {
         inp_out[[3 + figs]] <- clean_args(reg_pred_plot_inputs(), reg_pred_plot_args[-1])
         outputs <- c(outputs, "plot")
