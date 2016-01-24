@@ -469,6 +469,6 @@ output$metadata <- renderText({
   
   metadata = dbGetQuery(con, paste0("SELECT name, data_type, description FROM core_datacolumn WHERE data_table_group_id=", group_id))
   #display it
-  show_data_snippet(metadata, nshow=30)
+  show_data_snippet(metadata[with(metadata, order(name)),], nshow=30)
   
 })
