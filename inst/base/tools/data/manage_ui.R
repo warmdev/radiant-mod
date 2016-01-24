@@ -235,7 +235,7 @@ observeEvent(input$folder, {
       loadUserData(ex, file.path(data_path, ex), 'csv', r_data)
     }
   }
-  r_data[['datasetlist']] <- sort(r_data[['datasetlist']])
+  #r_data[['datasetlist']] <- sort(r_data[['datasetlist']])
   updateSelectInput(session, "folder", selected = input$folder)
 })
 
@@ -448,4 +448,27 @@ output$htmlDataExample <- renderText({
   r_data[[paste0(input$dataset,"_descr")]] %>%
     { is_empty(.) %>% ifelse (., 20, 10) } %>%
     show_data_snippet(nshow = .)
+})
+
+output$metadata <- renderText({
+  library(RPostgreSQL)
+  drv = dbDriver("PostgreSQL")
+
+  con = dbConnect(drv, dbname="miracle_metadata", host="db", port=5432, user="miracle", password="CHANGEME")
+  on.exit(dbDisconnect(con))
+  
+  file_name = paste(input$folder, input$dataset, sep="/")
+  file_name = paste(file_name, 'csv', sep='.')
+
+  project_name = unlist(strsplit(file_name, '/'))[1]
+
+  file_name = substring(file_name, nchar(project_name) + 2)
+  file_name = paste0("'", file_name, "'")
+  
+  group_id = dbGetQuery(con, paste0("SELECT data_table_group_id FROM core_datafile WHERE archived_file=", file_name))
+  
+  metadata = dbGetQuery(con, paste0("SELECT name, data_type, description FROM core_datacolumn WHERE data_table_group_id=", group_id))
+  #display it
+  show_data_snippet(metadata, nshow=30)
+  
 })

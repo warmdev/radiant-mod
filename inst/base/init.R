@@ -279,7 +279,8 @@ url_list <-
                                         "Pivot"     = "data/pivot/",
                                         "Explore"   = "data/explore/",
                                         "Transform" = "data/transform/",
-                                        "Combine"   = "data/combine/")),
+                                        "Combine"   = "data/combine/",
+                                        "Metadata"  = "data/metadata/")),
 
        "Sampling"    = "sample/sampling/",
        "Sample size" = "sample/sample-size/",

@@ -19,7 +19,7 @@ output$ui_data <- renderUI({
         ## based on https://groups.google.com/forum/?fromgroups=#!topic/shiny-discuss/PzlSAmAxxwo
         wellPanel(
           uiOutput("ui_datasets"),
-          conditionalPanel("input.tabs_data != 'Manage'",
+          conditionalPanel("input.tabs_data != 'Manage' || input.tabs_data != 'Metadata'",
             checkboxInput('show_filter', 'Filter (e.g., price > 5000)', value = state_init("show_filter",FALSE)),
             conditionalPanel("input.show_filter == true",
               returnTextAreaInput("data_filter", label = "", value = state_init("data_filter")),
@@ -65,7 +65,8 @@ output$ui_data <- renderUI({
                    verbatimTextOutput("transform_summary"),
                    uiOutput("ui_tr_log")),
           tabPanel("Combine", htmlOutput("cmb_data1"), htmlOutput("cmb_data2"),
-                   htmlOutput("cmb_possible"), htmlOutput("cmb_data"))
+                   htmlOutput("cmb_possible"), htmlOutput("cmb_data")),
+          tabPanel("Metadata", htmlOutput("metadata"))
           # tabPanel("Generate", HTML("<h3>Generate input data for simulation and prediction</h3>")),
           # , selected = ifelse (is_empty(r_url$tab), "Manage", r_url$tab)
         )
